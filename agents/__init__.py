@@ -1,9 +1,5 @@
-"""
-DataForge Agents Package
-========================
-Multi-agent pipeline for automated ML workflows.
-"""
-
+"""DataForge Agents Package"""
 from agents.data_ingestion import run_data_ingestion
+from agents.data_quality_audit import run_data_quality_audit
 
-__all__ = ['run_data_ingestion']
+__all__ = ['run_data_ingestion', 'run_data_quality_audit']
