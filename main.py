@@ -13,7 +13,7 @@ from dotenv import load_dotenv
 load_dotenv()
 
 from pipeline_context import PipelineContext
-from agents import run_data_ingestion, run_data_quality_audit
+from agents import run_data_ingestion, run_data_quality_audit, run_data_cleaning
 
 # ASCII Banner
 BANNER = r"""
@@ -124,6 +124,98 @@ def display_quality_audit_results(ctx: PipelineContext) -> None:
         print("-" * 60)
 
 
+def display_cleaning_results(ctx: PipelineContext) -> None:
+    """Display the results of data cleaning."""
+    print("\n" + "=" * 60)
+    print("🧹 AGENT 3: DATA CLEANING RESULTS")
+    print("=" * 60)
+    
+    status = ctx.agent_status.get("Data Cleaning")
+    
+    if status == "skipped":
+        print(f"\n⏭️  Status: SKIPPED (Previous agents failed or no data)")
+        return
+    
+    if status == "failed":
+        print(f"\n❌ Status: FAILED")
+        if ctx.errors:
+            print(f"\n⚠️  Errors:")
+            for error in ctx.errors:
+                if "cleaning" in error.lower():
+                    print(f"   - {error}")
+        return
+    
+    if status == "done":
+        print(f"\n✅ Status: SUCCESS")
+        
+        report = ctx.cleaning_report
+        
+        # Shape comparison
+        orig = report.get('original_shape', {})
+        clean = report.get('cleaned_shape', {})
+        print(f"\n📐 Shape Comparison:")
+        print(f"   - Original: {orig.get('rows', 0)} rows x {orig.get('columns', 0)} columns")
+        print(f"   - Cleaned:  {clean.get('rows', 0)} rows x {clean.get('columns', 0)} columns")
+        
+        # Missing values imputation
+        missing = report.get('missing_values', {})
+        print(f"\n📉 Missing Values Imputed:")
+        print(f"   - Total values imputed: {missing.get('total_values_imputed', 0)}")
+        print(f"   - Columns affected: {len(missing.get('columns_imputed', []))}")
+        if missing.get('columns_imputed'):
+            cols_display = missing['columns_imputed'][:5]
+            print(f"   - Columns: {cols_display}")
+        
+        # Duplicates removed
+        dups = report.get('duplicates', {})
+        print(f"\n📋 Duplicates Removed:")
+        print(f"   - Rows removed: {dups.get('duplicates_removed', 0)}")
+        
+        # Outliers capped
+        outliers = report.get('outliers', {})
+        print(f"\n📈 Outliers Capped (IQR method):")
+        print(f"   - Total values capped: {outliers.get('total_values_capped', 0)}")
+        print(f"   - Columns affected: {len(outliers.get('columns_capped', []))}")
+        if outliers.get('columns_capped'):
+            cols_display = outliers['columns_capped'][:5]
+            print(f"   - Columns: {cols_display}")
+        
+        # Type conversions
+        types = report.get('type_conversions', {})
+        print(f"\n🔄 Data Type Conversions:")
+        print(f"   - Columns converted: {len(types.get('columns_converted', []))}")
+        if types.get('columns_converted'):
+            print(f"   - Columns: {types['columns_converted']}")
+        
+        # Inconsistencies fixed
+        inconsist = report.get('inconsistencies', {})
+        print(f"\n⚠️  Inconsistencies Fixed:")
+        print(f"   - Total values fixed: {inconsist.get('total_values_fixed', 0)}")
+        print(f"   - Columns affected: {len(inconsist.get('columns_fixed', []))}")
+        if inconsist.get('details'):
+            for col, info in list(inconsist['details'].items())[:3]:
+                fixes = info.get('fixes_applied', [])
+                print(f"   - {col}: {', '.join(fixes)}")
+        
+        # LLM Cleaning Narrative
+        narrative = ctx.llm_narratives.get("cleaning", "")
+        print(f"\n🤖 AI Cleaning Summary:")
+        print("-" * 60)
+        if narrative:
+            display_text = narrative[:600] + "..." if len(narrative) > 600 else narrative
+            print(display_text)
+        else:
+            print("No narrative generated.")
+        print("-" * 60)
+        
+        # Show cleaned data preview
+        if ctx.clean_df is not None:
+            print(f"\n🔍 Cleaned Data Preview (first 3 rows):")
+            print("-" * 60)
+            print(ctx.clean_df.head(3).to_string(index=False))
+            print("-" * 60)
+
+
 def display_agent_status(ctx: PipelineContext) -> None:
     """Display overall agent status."""
     print("\n" + "=" * 60)
@@ -135,9 +227,9 @@ def display_agent_status(ctx: PipelineContext) -> None:
 
 
 def main():
-    """Main entry point - Agent 1 + Agent 2 Demo."""
+    """Main entry point - Agent 1 + Agent 2 + Agent 3 Demo."""
     print(BANNER)
-    print("🚀 Phase 2 - Data Ingestion + Quality Audit Demo")
+    print("🚀 Phase 2 - Data Ingestion + Quality Audit + Data Cleaning Demo")
     print("=" * 60)
     print("\nSupported formats: CSV, Excel (.xlsx, .xls), Parquet (.parquet, .pq), URL")
     print("Sample data available: uploads/sample_data.csv")
@@ -166,6 +258,15 @@ def main():
     else:
         print("\n⏭️  Skipping Agent 2: Data Ingestion failed")
         ctx.mark_agent("Data Quality Audit", "skipped")
+    
+    # === Agent 3: Data Cleaning ===
+    if ctx.agent_status.get("Data Ingestion") == "done":
+        print("\n🔄 Running Agent 3: Data Cleaning...")
+        ctx = run_data_cleaning(ctx)
+        display_cleaning_results(ctx)
+    else:
+        print("\n⏭️  Skipping Agent 3: Previous agents failed")
+        ctx.mark_agent("Data Cleaning", "skipped")
     
     # Display overall status
     display_agent_status(ctx)
