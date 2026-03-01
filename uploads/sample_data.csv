@@ -1,0 +1,101 @@
+id,age,income,education,target
+1,56,86228,Master,1
+2,69,139752,Bachelor,1
+3,46,73984,High School,0
+4,32,65774,Bachelor,0
+5,60,27568,PhD,0
+6,25,145151,High School,1
+7,38,87592,Bachelor,0
+8,56,92563,High School,0
+9,36,27695,Bachelor,1
+10,40,149375,Bachelor,0
+11,28,73190,High School,1
+12,28,30258,Bachelor,0
+13,41,112538,Bachelor,0
+14,53,64504,Bachelor,1
+15,57,58159,High School,1
+16,41,38986,High School,1
+17,20,86858,High School,0
+18,39,37666,High School,0
+19,19,63660,Bachelor,0
+20,41,28561,Bachelor,1
+21,61,51854,High School,0
+22,47,89505,High School,1
+23,55,129488,High School,0
+24,19,77251,Bachelor,0
+25,38,47662,Master,1
+26,50,33392,High School,1
+27,29,55535,PhD,1
+28,39,103603,High School,0
+29,61,138569,PhD,0
+30,42,77256,Bachelor,0
+31,66,114135,High School,1
+32,44,60222,Bachelor,0
+33,59,102373,Bachelor,0
+34,45,104575,Bachelor,0
+35,33,148684,Bachelor,0
+36,32,121354,Bachelor,0
+37,64,109651,Bachelor,0
+38,68,88335,Bachelor,0
+39,61,35965,High School,1
+40,69,49538,Bachelor,1
+41,20,133066,High School,0
+42,54,95592,Master,0
+43,68,123018,Bachelor,1
+44,24,138252,PhD,0
+45,38,33110,Bachelor,0
+46,26,104309,Master,0
+47,56,52266,Master,0
+48,35,77992,High School,1
+49,21,107948,Bachelor,0
+50,42,147073,Bachelor,1
+51,31,123806,Master,0
+52,67,31910,Bachelor,0
+53,26,135989,High School,0
+54,43,115982,Master,0
+55,19,146626,Master,1
+56,37,144176,Bachelor,0
+57,45,25206,High School,0
+58,64,112054,PhD,1
+59,24,112897,Bachelor,0
+60,61,147409,Bachelor,0
+61,25,48419,Master,0
+62,64,75636,Bachelor,0
+63,52,147546,Master,1
+64,31,139238,High School,0
+65,34,75015,Bachelor,0
+66,53,142478,Bachelor,0
+67,67,147096,High School,1
+68,57,132059,High School,0
+69,21,79268,PhD,0
+70,19,135687,Bachelor,1
+71,23,112939,High School,1
+72,59,43141,PhD,1
+73,21,105356,PhD,0
+74,46,130878,Bachelor,0
+75,35,96910,Master,0
+76,43,81044,High School,0
+77,61,92214,High School,0
+78,51,142930,Master,1
+79,27,144324,Master,0
+80,53,58827,Master,1
+81,31,80820,Bachelor,0
+82,48,87623,Master,1
+83,65,106734,Master,0
+84,32,100450,PhD,0
+85,25,118426,Master,1
+86,31,142845,Bachelor,0
+87,40,47299,Bachelor,0
+88,57,68585,Bachelor,1
+89,38,134225,PhD,1
+90,33,89044,PhD,0
+91,62,67557,High School,0
+92,35,74080,Bachelor,0
+93,64,134556,Bachelor,1
+94,41,27693,Bachelor,0
+95,43,120003,PhD,0
+96,42,120259,High School,0
+97,62,137235,High School,0
+98,58,94163,Bachelor,1
+99,46,50939,High School,0
+100,32,73925,Bachelor,1
