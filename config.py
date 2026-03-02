@@ -2,6 +2,10 @@
 import os
 from dotenv import load_dotenv
 
+# Set UTF-8 encoding for console output (Fix for UnicodeEncodeError)
+os.environ['PYTHONIOENCODING'] = 'utf-8'
+PYTHONIOENCODING = 'utf-8'
+
 # Load environment variables
 load_dotenv()
 

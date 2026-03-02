@@ -27,11 +27,12 @@ def _setup_root_logger() -> None:
     
     formatter = logging.Formatter(LOG_FORMAT)
     
-    # Rotating file handler
+    # Rotating file handler with UTF-8 encoding
     file_handler = RotatingFileHandler(
         LOG_FILE,
         maxBytes=LOG_MAX_BYTES,
-        backupCount=LOG_BACKUP_COUNT
+        backupCount=LOG_BACKUP_COUNT,
+        encoding='utf-8'
     )
     file_handler.setLevel(logging.DEBUG)
     file_handler.setFormatter(formatter)

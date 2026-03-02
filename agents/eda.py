@@ -297,7 +297,7 @@ def _generate_count_plots(df: pd.DataFrame, reports_dir: str, timestamp: str, ma
             # Get top 10 categories
             value_counts = df[col].value_counts().head(10)
             
-            sns.barplot(x=value_counts.values, y=value_counts.index, ax=ax, palette='viridis')
+            sns.barplot(x=value_counts.values, y=value_counts.index, hue=value_counts.index, ax=ax, palette='viridis', legend=False)
             ax.set_title(f'Top Categories: {col}', fontsize=10)
             ax.set_xlabel('Count')
             ax.set_ylabel(col)
@@ -360,7 +360,7 @@ def _generate_target_distribution_plot(df: pd.DataFrame, target_column: str, tas
         
         if task_type == 'classification':
             value_counts = target_data.value_counts()
-            sns.barplot(x=value_counts.index.astype(str), y=value_counts.values, ax=ax, palette='Set2')
+            sns.barplot(x=value_counts.index.astype(str), y=value_counts.values, hue=value_counts.index.astype(str), ax=ax, palette='Set2', legend=False)
             ax.set_title(f'Target Distribution: {target_column}', fontsize=10)
             ax.set_xlabel('Class')
             ax.set_ylabel('Count')

@@ -1,5 +1,6 @@
 """DataForge - Personal Data Science Automation Tool"""
 import sys
+import os
 
 # Virtual environment check (must be first)
 if sys.prefix == sys.base_prefix:
@@ -7,13 +8,23 @@ if sys.prefix == sys.base_prefix:
     print("Run: venv\\Scripts\\activate")
     sys.exit(1)
 
+# Check for placeholder API keys BEFORE loading .env
+if os.path.exists('.env'):
+    with open('.env', 'r', encoding='utf-8') as f:
+        env_content = f.read()
+        if 'your_anthropic_key_here' in env_content or 'your_openai_key_here' in env_content or 'your_deepseek_key_here' in env_content:
+            print("⚠️ ERROR: Placeholder API keys detected in .env file.")
+            print("Please replace placeholder values with your actual API keys.")
+            print("Edit .env and add your real keys before running DataForge.")
+            sys.exit(1)
+
 from dotenv import load_dotenv
 
 # Load environment variables
 load_dotenv()
 
 from pipeline_context import PipelineContext
-from agents import run_data_ingestion, run_data_quality_audit, run_data_cleaning, run_eda
+from agents import run_data_ingestion, run_data_quality_audit, run_data_cleaning, run_eda, run_feature_engineering
 
 # ASCII Banner
 BANNER = r"""
@@ -318,6 +329,82 @@ def display_eda_results(ctx: PipelineContext) -> None:
         print("-" * 60)
 
 
+def display_feature_engineering_results(ctx: PipelineContext) -> None:
+    """Display the results of feature engineering."""
+    print("\n" + "=" * 60)
+    print("🔧 AGENT 5: FEATURE ENGINEERING RESULTS")
+    print("=" * 60)
+    
+    status = ctx.agent_status.get("Feature Engineering")
+    
+    if status == "skipped":
+        print(f"\n⏭️  Status: SKIPPED (Previous agents failed or no data)")
+        return
+    
+    if status == "failed":
+        print(f"\n❌ Status: FAILED")
+        if ctx.errors:
+            print(f"\n⚠️  Errors:")
+            for error in ctx.errors:
+                if "feature" in error.lower() or "engineering" in error.lower():
+                    print(f"   - {error}")
+        return
+    
+    if status == "done":
+        print(f"\n✅ Status: SUCCESS")
+        
+        fe_report = ctx.eda_summary.get("feature_engineering", {})
+        
+        # Feature counts
+        print(f"\n📊 Feature Summary:")
+        print(f"   - Original columns: {fe_report.get('original_columns', 0)}")
+        print(f"   - New columns: {fe_report.get('new_columns', 0)}")
+        print(f"   - Features created: {fe_report.get('features_created', 0)}")
+        
+        # Transformations applied
+        transformations = fe_report.get('transformations_applied', {})
+        print(f"\n🔄 Transformations Applied:")
+        
+        log_transforms = transformations.get('log_transforms', [])
+        if log_transforms:
+            print(f"   - Log transforms: {log_transforms[:5]}{'...' if len(log_transforms) > 5 else ''}")
+        
+        polynomial = transformations.get('polynomial', [])
+        if polynomial:
+            print(f"   - Polynomial features: {polynomial[:5]}{'...' if len(polynomial) > 5 else ''}")
+        
+        interactions = transformations.get('interactions', [])
+        if interactions:
+            print(f"   - Interaction features: {interactions[:3]}{'...' if len(interactions) > 3 else ''}")
+        
+        binning = transformations.get('binning', [])
+        if binning:
+            print(f"   - Binned features: {binning[:3]}{'...' if len(binning) > 3 else ''}")
+        
+        # New feature names
+        new_features = fe_report.get('new_feature_names', [])
+        print(f"\n📋 New Feature Names (first 10):")
+        for i, feat in enumerate(new_features[:10]):
+            print(f"   {i+1}. {feat}")
+        if len(new_features) > 10:
+            print(f"   ... and {len(new_features) - 10} more")
+        
+        # LLM Feature Engineering Narrative
+        narrative = ctx.llm_narratives.get("feature_engineering", "")
+        print(f"\n🤖 AI Feature Engineering Summary:")
+        print("-" * 60)
+        if narrative:
+            display_text = narrative[:600] + "..." if len(narrative) > 600 else narrative
+            print(display_text)
+        else:
+            print("No narrative generated.")
+        print("-" * 60)
+        
+        # Updated dataframe preview
+        if ctx.clean_df is not None:
+            print(f"\n📐 Updated DataFrame Shape: {ctx.clean_df.shape[0]} rows x {ctx.clean_df.shape[1]} columns")
+
+
 def display_agent_status(ctx: PipelineContext) -> None:
     """Display overall agent status."""
     print("\n" + "=" * 60)
@@ -329,9 +416,9 @@ def display_agent_status(ctx: PipelineContext) -> None:
 
 
 def main():
-    """Main entry point - Agent 1 + Agent 2 + Agent 3 + Agent 4 Demo."""
+    """Main entry point - Agent 1 through Agent 5 Demo."""
     print(BANNER)
-    print("🚀 Phase 2 - Data Ingestion + Quality Audit + Data Cleaning + EDA Demo")
+    print("🚀 Phase 2 - Data Ingestion + Quality Audit + Data Cleaning + EDA + Feature Engineering Demo")
     print("=" * 60)
     print("\nSupported formats: CSV, Excel (.xlsx, .xls), Parquet (.parquet, .pq), URL")
     print("Sample data available: uploads/sample_data.csv")
@@ -378,6 +465,15 @@ def main():
     else:
         print("\n⏭️  Skipping Agent 4: Previous agents failed")
         ctx.mark_agent("EDA", "skipped")
+    
+    # === Agent 5: Feature Engineering ===
+    if ctx.agent_status.get("EDA") == "done":
+        print("\n🔄 Running Agent 5: Feature Engineering...")
+        ctx = run_feature_engineering(ctx)
+        display_feature_engineering_results(ctx)
+    else:
+        print("\n⏭️  Skipping Agent 5: Previous agents failed")
+        ctx.mark_agent("Feature Engineering", "skipped")
     
     # Display overall status
     display_agent_status(ctx)
