@@ -512,6 +512,33 @@ def main():
     ctx = run_data_ingestion(ctx)
     display_ingestion_results(ctx)
     
+    # === Prompt for Target Column (after successful ingestion) ===
+    if ctx.agent_status.get("Data Ingestion") == "done" and ctx.raw_df is not None:
+        print("\n" + "-" * 60)
+        print("🎯 TARGET VARIABLE CONFIGURATION")
+        print("-" * 60)
+        print(f"Available columns: {list(ctx.raw_df.columns)}")
+        
+        while True:
+            target_col = input("\nEnter target column name (or press Enter to skip modeling): ").strip()
+            
+            if target_col == "":
+                # User wants to skip modeling
+                print("ℹ️  Skipping modeling (no target variable specified).")
+                ctx.has_target = False
+                break
+            elif target_col in ctx.raw_df.columns:
+                # Valid column
+                ctx.target_column = target_col
+                ctx.has_target = True
+                print(f"✅ Target column set to: '{target_col}'")
+                break
+            else:
+                # Invalid column
+                print(f"❌ Error: Column '{target_col}' not found in dataset.")
+                print(f"Available columns: {list(ctx.raw_df.columns)}")
+                # Loop continues, ask again
+    
     # === Agent 2: Data Quality Audit ===
     if ctx.agent_status.get("Data Ingestion") == "done":
         print("\n🔄 Running Agent 2: Data Quality Audit...")
