@@ -1,7 +1,7 @@
 """DataForge Agent 6: Modeling - Train Random Forest classifier/regressor."""
 import numpy as np
 import pandas as pd
-from sklearn.model_selection import train_test_split
+from sklearn.model_selection import train_test_split, cross_val_score
 from sklearn.ensemble import RandomForestClassifier, RandomForestRegressor
 from sklearn.metrics import (
     accuracy_score, precision_score, recall_score, f1_score,
@@ -35,6 +35,7 @@ def encode_categoricals(df: pd.DataFrame, target_column: str) -> tuple:
     """
     Encode categorical features using pd.get_dummies.
     Drop high-cardinality categoricals (>50 unique values).
+    FIX: Keep all one-hot encoded columns (no drop_first).
     
     Returns:
         tuple: (X, y) - encoded features and target
@@ -53,10 +54,11 @@ def encode_categoricals(df: pd.DataFrame, target_column: str) -> tuple:
         X = X.drop(columns=high_card_cols)
         cat_cols = [col for col in cat_cols if col not in high_card_cols]
     
-    # One-hot encode remaining categoricals
+    # One-hot encode remaining categoricals (keep ALL encoded columns)
     if cat_cols:
         logger.info(f"One-hot encoding categorical columns: {cat_cols}")
-        X = pd.get_dummies(X, columns=cat_cols, drop_first=True)
+        # FIX: Remove drop_first=True to keep all encoded columns
+        X = pd.get_dummies(X, columns=cat_cols, drop_first=False)
     
     return X, y
 
@@ -65,6 +67,7 @@ def run_modeling(ctx: PipelineContext) -> PipelineContext:
     """
     Train Random Forest model (classifier or regressor) on ctx.clean_df.
     Auto-detects task type, encodes categoricals, evaluates performance.
+    Includes 5-fold cross-validation.
     
     Args:
         ctx: PipelineContext with clean_df, target_column, and has_target
@@ -168,12 +171,14 @@ def run_modeling(ctx: PipelineContext) -> PipelineContext:
                    f"random_state={config.RANDOM_SEED}")
         
         if ctx.task_type == "classification":
+            # IMPROVEMENT: Add class_weight='balanced' for imbalanced datasets
             model = RandomForestClassifier(
                 n_estimators=config.RF_N_ESTIMATORS,
                 max_depth=config.RF_MAX_DEPTH,
                 min_samples_leaf=config.RF_MIN_SAMPLES_LEAF,
                 n_jobs=config.RF_N_JOBS,
-                random_state=config.RANDOM_SEED
+                random_state=config.RANDOM_SEED,
+                class_weight='balanced'  # Handle class imbalance
             )
         else:
             model = RandomForestRegressor(
@@ -186,6 +191,23 @@ def run_modeling(ctx: PipelineContext) -> PipelineContext:
         
         model.fit(X_train, y_train)
         logger.info("Model training complete.")
+        
+        # === 5-Fold Cross-Validation ===
+        logger.info("Performing 5-fold cross-validation...")
+        try:
+            scoring = 'accuracy' if ctx.task_type == 'classification' else 'r2'
+            cv_scores = cross_val_score(
+                model, X_train, y_train, 
+                cv=5, 
+                scoring=scoring
+            )
+            cv_mean = round(cv_scores.mean(), 4)
+            cv_std = round(cv_scores.std(), 4)
+            logger.info(f"Cross-Validation {scoring.upper()} (5-fold): {cv_mean:.4f} ± {cv_std:.4f}")
+        except Exception as e:
+            logger.warning(f"Cross-validation failed: {e}")
+            cv_mean = None
+            cv_std = None
         
         # === Evaluate Model ===
         logger.info("Evaluating model performance...")
@@ -210,6 +232,7 @@ def run_modeling(ctx: PipelineContext) -> PipelineContext:
             conf_matrix = confusion_matrix(y_test, y_test_pred).tolist()
             class_report = classification_report(y_test, y_test_pred, output_dict=True, zero_division=0)
             
+            # Round all metrics to 4 decimal places
             metrics = {
                 "train_accuracy": round(train_accuracy, 4),
                 "test_accuracy": round(test_accuracy, 4),
@@ -218,6 +241,11 @@ def run_modeling(ctx: PipelineContext) -> PipelineContext:
                 "f1_score": round(test_f1, 4),
                 "classification_report": class_report
             }
+            
+            # Add CV metrics
+            if cv_mean is not None:
+                metrics["cv_mean"] = cv_mean
+                metrics["cv_std"] = cv_std
             
             logger.info(f"Test Accuracy: {test_accuracy:.4f}")
             logger.info(f"Test F1 Score: {test_f1:.4f}")
@@ -237,6 +265,7 @@ def run_modeling(ctx: PipelineContext) -> PipelineContext:
             else:
                 mape = None
             
+            # Round all metrics to 4 decimal places
             metrics = {
                 "train_rmse": round(train_rmse, 4),
                 "test_rmse": round(test_rmse, 4),
@@ -244,7 +273,12 @@ def run_modeling(ctx: PipelineContext) -> PipelineContext:
                 "test_r2": round(test_r2, 4),
             }
             if mape is not None:
-                metrics["test_mape"] = round(mape, 2)
+                metrics["test_mape"] = round(mape, 4)
+            
+            # Add CV metrics
+            if cv_mean is not None:
+                metrics["cv_mean"] = cv_mean
+                metrics["cv_std"] = cv_std
             
             conf_matrix = None
             
@@ -259,13 +293,21 @@ def run_modeling(ctx: PipelineContext) -> PipelineContext:
             'importance': feature_importance
         }).sort_values('importance', ascending=False)
         
-        top_features = importance_df.head(10).to_dict('records')
+        # Round importance to 4 decimal places
+        top_features = []
+        for _, row in importance_df.head(10).iterrows():
+            top_features.append({
+                'feature': row['feature'],
+                'importance': round(row['importance'], 4)
+            })
+        
         logger.info(f"Top 5 important features: {importance_df.head(5)['feature'].tolist()}")
         
         # === Store Results ===
         ctx.model_results = {
             "task_type": ctx.task_type,
-            "model": None,  # Set to None to save memory (model object can be large)
+            "model": model,  # Store model for SHAP
+            "X_test": X_test,  # Store X_test for SHAP analysis
             "feature_names": feature_names,
             "feature_count": len(feature_names),
             "train_size": len(X_train),
@@ -275,7 +317,8 @@ def run_modeling(ctx: PipelineContext) -> PipelineContext:
                 "max_depth": config.RF_MAX_DEPTH,
                 "min_samples_leaf": config.RF_MIN_SAMPLES_LEAF,
                 "n_jobs": config.RF_N_JOBS,
-                "random_state": config.RANDOM_SEED
+                "random_state": config.RANDOM_SEED,
+                "class_weight": "balanced" if ctx.task_type == "classification" else None
             },
             "metrics": metrics,
             "feature_importance": top_features,

@@ -6,6 +6,7 @@ from agents.data_cleaning import run_data_cleaning
 from agents.eda import run_eda
 from agents.feature_engineering import run_feature_engineering
 from agents.modeling import run_modeling
+from agents.shap_interpretability import run_shap_interpretability
 
 __all__ = [
     'run_data_ingestion',
@@ -13,5 +14,6 @@ __all__ = [
     'run_data_cleaning',
     'run_eda',
     'run_feature_engineering',
-    'run_modeling'
+    'run_modeling',
+    'run_shap_interpretability'
 ]

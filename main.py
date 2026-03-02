@@ -24,7 +24,10 @@ from dotenv import load_dotenv
 load_dotenv()
 
 from pipeline_context import PipelineContext
-from agents import run_data_ingestion, run_data_quality_audit, run_data_cleaning, run_eda, run_feature_engineering, run_modeling
+from agents import (
+    run_data_ingestion, run_data_quality_audit, run_data_cleaning, 
+    run_eda, run_feature_engineering, run_modeling, run_shap_interpretability
+)
 
 # ASCII Banner
 BANNER = r"""
@@ -310,7 +313,6 @@ def display_eda_results(ctx: PipelineContext) -> None:
         print(f"\n📊 Plots Generated: {len(plots)}")
         if plots:
             print(f"   Files (first 5):")
-            import os
             for plot_path in plots[:5]:
                 filename = os.path.basename(plot_path)
                 print(f"   - {filename}")
@@ -406,7 +408,7 @@ def display_feature_engineering_results(ctx: PipelineContext) -> None:
 
 
 def display_modeling_results(ctx: PipelineContext) -> None:
-    """Display the results of modeling."""
+    """Display the results of modeling with all metrics rounded to 4 decimal places."""
     print("\n" + "=" * 60)
     print("🤖 AGENT 6: MODELING RESULTS")
     print("=" * 60)
@@ -445,17 +447,24 @@ def display_modeling_results(ctx: PipelineContext) -> None:
         print(f"   - max_depth: {hyperparams.get('max_depth', 'N/A')}")
         print(f"   - min_samples_leaf: {hyperparams.get('min_samples_leaf', 'N/A')}")
         print(f"   - random_state: {hyperparams.get('random_state', 'N/A')}")
+        if hyperparams.get('class_weight'):
+            print(f"   - class_weight: {hyperparams.get('class_weight')}")
         
         # Metrics
         metrics = results.get('metrics', {})
         print(f"\n📈 Evaluation Metrics:")
         
         if results.get('task_type') == 'classification':
-            print(f"   - Train Accuracy: {metrics.get('train_accuracy', 'N/A')}")
-            print(f"   - Test Accuracy: {metrics.get('test_accuracy', 'N/A')}")
-            print(f"   - Precision: {metrics.get('precision', 'N/A')}")
-            print(f"   - Recall: {metrics.get('recall', 'N/A')}")
-            print(f"   - F1 Score: {metrics.get('f1_score', 'N/A')}")
+            print(f"   - Train Accuracy: {metrics.get('train_accuracy', 'N/A'):.4f}" if isinstance(metrics.get('train_accuracy'), (int, float)) else f"   - Train Accuracy: {metrics.get('train_accuracy', 'N/A')}")
+            print(f"   - Test Accuracy: {metrics.get('test_accuracy', 'N/A'):.4f}" if isinstance(metrics.get('test_accuracy'), (int, float)) else f"   - Test Accuracy: {metrics.get('test_accuracy', 'N/A')}")
+            print(f"   - Precision: {metrics.get('precision', 'N/A'):.4f}" if isinstance(metrics.get('precision'), (int, float)) else f"   - Precision: {metrics.get('precision', 'N/A')}")
+            print(f"   - Recall: {metrics.get('recall', 'N/A'):.4f}" if isinstance(metrics.get('recall'), (int, float)) else f"   - Recall: {metrics.get('recall', 'N/A')}")
+            print(f"   - F1 Score: {metrics.get('f1_score', 'N/A'):.4f}" if isinstance(metrics.get('f1_score'), (int, float)) else f"   - F1 Score: {metrics.get('f1_score', 'N/A')}")
+            
+            # Cross-Validation
+            if 'cv_mean' in metrics and metrics['cv_mean'] is not None:
+                print(f"\n📊 Cross-Validation (5-fold):")
+                print(f"   - CV Accuracy: {metrics.get('cv_mean', 0):.4f} ± {metrics.get('cv_std', 0):.4f}")
             
             # Confusion Matrix
             conf_matrix = results.get('confusion_matrix')
@@ -464,18 +473,72 @@ def display_modeling_results(ctx: PipelineContext) -> None:
                 for row in conf_matrix:
                     print(f"   {row}")
         else:
-            print(f"   - Train RMSE: {metrics.get('train_rmse', 'N/A')}")
-            print(f"   - Test RMSE: {metrics.get('test_rmse', 'N/A')}")
-            print(f"   - Test MAE: {metrics.get('test_mae', 'N/A')}")
-            print(f"   - Test R² Score: {metrics.get('test_r2', 'N/A')}")
+            print(f"   - Train RMSE: {metrics.get('train_rmse', 'N/A'):.4f}" if isinstance(metrics.get('train_rmse'), (int, float)) else f"   - Train RMSE: {metrics.get('train_rmse', 'N/A')}")
+            print(f"   - Test RMSE: {metrics.get('test_rmse', 'N/A'):.4f}" if isinstance(metrics.get('test_rmse'), (int, float)) else f"   - Test RMSE: {metrics.get('test_rmse', 'N/A')}")
+            print(f"   - Test MAE: {metrics.get('test_mae', 'N/A'):.4f}" if isinstance(metrics.get('test_mae'), (int, float)) else f"   - Test MAE: {metrics.get('test_mae', 'N/A')}")
+            print(f"   - Test R² Score: {metrics.get('test_r2', 'N/A'):.4f}" if isinstance(metrics.get('test_r2'), (int, float)) else f"   - Test R² Score: {metrics.get('test_r2', 'N/A')}")
             if 'test_mape' in metrics:
-                print(f"   - Test MAPE: {metrics.get('test_mape')}%")
+                print(f"   - Test MAPE: {metrics.get('test_mape'):.4f}%" if isinstance(metrics.get('test_mape'), (int, float)) else f"   - Test MAPE: {metrics.get('test_mape')}%")
+            
+            # Cross-Validation
+            if 'cv_mean' in metrics and metrics['cv_mean'] is not None:
+                print(f"\n📊 Cross-Validation (5-fold):")
+                print(f"   - CV R² Score: {metrics.get('cv_mean', 0):.4f} ± {metrics.get('cv_std', 0):.4f}")
         
         # Feature Importance
         importance = results.get('feature_importance', [])
         print(f"\n🔝 Top 5 Feature Importances:")
         for i, feat in enumerate(importance[:5]):
             print(f"   {i+1}. {feat['feature']}: {feat['importance']:.4f}")
+
+
+def display_shap_results(ctx: PipelineContext) -> None:
+    """Display the results of SHAP interpretability analysis."""
+    print("\n" + "=" * 60)
+    print("🔬 AGENT 7: SHAP INTERPRETABILITY RESULTS")
+    print("=" * 60)
+    
+    status = ctx.agent_status.get("SHAP Interpretability")
+    
+    if status == "skipped":
+        print(f"\n⏭️  Status: SKIPPED (No model available or previous agents failed)")
+        return
+    
+    if status == "failed":
+        print(f"\n❌ Status: FAILED")
+        if ctx.errors:
+            print(f"\n⚠️  Errors:")
+            for error in ctx.errors:
+                if "shap" in error.lower():
+                    print(f"   - {error}")
+        return
+    
+    if status == "done":
+        print(f"\n✅ Status: SUCCESS")
+        
+        shap_results = ctx.shap_results
+        
+        # Method used
+        method = shap_results.get('method', 'N/A')
+        print(f"\n📊 Analysis Method:")
+        if method == "shap":
+            print(f"   - SHAP TreeExplainer (full SHAP values computed)")
+        else:
+            print(f"   - Fallback: model.feature_importances_ (SHAP unavailable)")
+        
+        # Top features
+        top_features = shap_results.get('top_features', [])
+        print(f"\n🔝 Top 10 Feature Importances ({method.upper()}):")
+        for i, feat in enumerate(top_features[:10]):
+            print(f"   {i+1}. {feat['feature']}: {feat['importance']:.4f}")
+        
+        # Plots generated
+        plots = shap_results.get('plots', [])
+        print(f"\n📊 SHAP Plots Generated: {len(plots)}")
+        if plots:
+            for plot_path in plots:
+                filename = os.path.basename(plot_path)
+                print(f"   - {filename}")
 
 
 def display_agent_status(ctx: PipelineContext) -> None:
@@ -489,9 +552,9 @@ def display_agent_status(ctx: PipelineContext) -> None:
 
 
 def main():
-    """Main entry point - Agent 1 through Agent 6 Demo."""
+    """Main entry point - Agent 1 through Agent 7 Demo."""
     print(BANNER)
-    print("🚀 Phase 2 - Data Ingestion + Quality Audit + Data Cleaning + EDA + Feature Engineering + Modeling Demo")
+    print("🚀 Phase 2 - Full Pipeline: Ingestion → Quality Audit → Cleaning → EDA → Feature Engineering → Modeling → SHAP")
     print("=" * 60)
     print("\nSupported formats: CSV, Excel (.xlsx, .xls), Parquet (.parquet, .pq), URL")
     print("Sample data available: uploads/sample_data.csv")
@@ -587,11 +650,20 @@ def main():
             print("\n⏭️  Skipping Agent 6: Previous agents failed")
         ctx.mark_agent("Modeling", "skipped")
     
+    # === Agent 7: SHAP Interpretability ===
+    if ctx.agent_status.get("Modeling") == "done":
+        print("\n🔄 Running Agent 7: SHAP Interpretability...")
+        ctx = run_shap_interpretability(ctx)
+        display_shap_results(ctx)
+    else:
+        print("\n⏭️  Skipping Agent 7: Modeling not completed")
+        ctx.mark_agent("SHAP Interpretability", "skipped")
+    
     # Display overall status
     display_agent_status(ctx)
     
     print("\n" + "=" * 60)
-    print("Demo complete. Full pipeline coming in later phases.")
+    print("Pipeline complete. All 7 agents executed.")
     print("=" * 60)
 
 
