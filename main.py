@@ -13,7 +13,7 @@ from dotenv import load_dotenv
 load_dotenv()
 
 from pipeline_context import PipelineContext
-from agents import run_data_ingestion, run_data_quality_audit, run_data_cleaning
+from agents import run_data_ingestion, run_data_quality_audit, run_data_cleaning, run_eda
 
 # ASCII Banner
 BANNER = r"""
@@ -216,6 +216,108 @@ def display_cleaning_results(ctx: PipelineContext) -> None:
             print("-" * 60)
 
 
+def display_eda_results(ctx: PipelineContext) -> None:
+    """Display the results of exploratory data analysis."""
+    print("\n" + "=" * 60)
+    print("📈 AGENT 4: EXPLORATORY DATA ANALYSIS RESULTS")
+    print("=" * 60)
+    
+    status = ctx.agent_status.get("EDA")
+    
+    if status == "skipped":
+        print(f"\n⏭️  Status: SKIPPED (Previous agents failed or no data)")
+        return
+    
+    if status == "failed":
+        print(f"\n❌ Status: FAILED")
+        if ctx.errors:
+            print(f"\n⚠️  Errors:")
+            for error in ctx.errors:
+                if "eda" in error.lower():
+                    print(f"   - {error}")
+        return
+    
+    if status == "done":
+        print(f"\n✅ Status: SUCCESS")
+        
+        # Descriptive Statistics Summary
+        desc_stats = ctx.eda_summary.get('descriptive_stats', {})
+        numeric_stats = desc_stats.get('numeric', {})
+        categorical_stats = desc_stats.get('categorical', {})
+        
+        print(f"\n📊 Descriptive Statistics:")
+        print(f"   - Numeric columns analyzed: {len(numeric_stats)}")
+        print(f"   - Categorical columns analyzed: {len(categorical_stats)}")
+        
+        # Show top 3 numeric column stats
+        if numeric_stats:
+            print(f"\n   Top numeric column stats:")
+            for i, (col, stats) in enumerate(list(numeric_stats.items())[:3]):
+                skew = stats.get('skewness', 0)
+                skew_label = "normal" if abs(skew) < 0.5 else ("right-skewed" if skew > 0 else "left-skewed")
+                print(f"   - {col}: mean={stats['mean']:.2f}, median={stats['median']:.2f}, std={stats['std']:.2f}, skew={skew_label}")
+        
+        # Correlation Analysis
+        correlations = ctx.eda_summary.get('correlations', {})
+        print(f"\n🔗 Correlation Analysis:")
+        
+        top_positive = correlations.get('top_positive', [])
+        top_negative = correlations.get('top_negative', [])
+        
+        if top_positive:
+            print(f"   Top Positive Correlations:")
+            for col1, col2, corr in top_positive[:3]:
+                print(f"   - {col1} ↔ {col2}: {corr:.3f}")
+        else:
+            print(f"   - No strong positive correlations found")
+        
+        if top_negative:
+            print(f"   Top Negative Correlations:")
+            for col1, col2, corr in top_negative[:3]:
+                print(f"   - {col1} ↔ {col2}: {corr:.3f}")
+        else:
+            print(f"   - No strong negative correlations found")
+        
+        # Target Analysis (if available)
+        target_analysis = ctx.eda_summary.get('target_analysis')
+        if target_analysis and 'error' not in target_analysis:
+            print(f"\n🎯 Target Variable Analysis:")
+            print(f"   - Column: {target_analysis.get('column', 'N/A')}")
+            print(f"   - Task Type: {target_analysis.get('task_type', 'N/A')}")
+            
+            if target_analysis.get('task_type') == 'classification':
+                print(f"   - Classes: {target_analysis.get('num_classes', 'N/A')}")
+                print(f"   - Balance: {target_analysis.get('balance_status', 'N/A')}")
+                class_dist = target_analysis.get('class_distribution', {})
+                print(f"   - Distribution: {class_dist}")
+            else:
+                print(f"   - Mean: {target_analysis.get('mean', 0):.2f}")
+                print(f"   - Std: {target_analysis.get('std', 0):.2f}")
+        
+        # Plots Generated
+        plots = ctx.plots
+        print(f"\n📊 Plots Generated: {len(plots)}")
+        if plots:
+            print(f"   Files (first 5):")
+            import os
+            for plot_path in plots[:5]:
+                filename = os.path.basename(plot_path)
+                print(f"   - {filename}")
+            if len(plots) > 5:
+                print(f"   ... and {len(plots) - 5} more")
+        
+        # LLM EDA Narrative
+        narrative = ctx.llm_narratives.get("eda", "")
+        print(f"\n🤖 AI EDA Insights:")
+        print("-" * 60)
+        if narrative:
+            display_text = narrative[:700] + "..." if len(narrative) > 700 else narrative
+            print(display_text)
+        else:
+            print("No narrative generated.")
+        print("-" * 60)
+
+
 def display_agent_status(ctx: PipelineContext) -> None:
     """Display overall agent status."""
     print("\n" + "=" * 60)
@@ -227,9 +329,9 @@ def display_agent_status(ctx: PipelineContext) -> None:
 
 
 def main():
-    """Main entry point - Agent 1 + Agent 2 + Agent 3 Demo."""
+    """Main entry point - Agent 1 + Agent 2 + Agent 3 + Agent 4 Demo."""
     print(BANNER)
-    print("🚀 Phase 2 - Data Ingestion + Quality Audit + Data Cleaning Demo")
+    print("🚀 Phase 2 - Data Ingestion + Quality Audit + Data Cleaning + EDA Demo")
     print("=" * 60)
     print("\nSupported formats: CSV, Excel (.xlsx, .xls), Parquet (.parquet, .pq), URL")
     print("Sample data available: uploads/sample_data.csv")
@@ -267,6 +369,15 @@ def main():
     else:
         print("\n⏭️  Skipping Agent 3: Previous agents failed")
         ctx.mark_agent("Data Cleaning", "skipped")
+    
+    # === Agent 4: Exploratory Data Analysis ===
+    if ctx.agent_status.get("Data Cleaning") == "done":
+        print("\n🔄 Running Agent 4: Exploratory Data Analysis...")
+        ctx = run_eda(ctx)
+        display_eda_results(ctx)
+    else:
+        print("\n⏭️  Skipping Agent 4: Previous agents failed")
+        ctx.mark_agent("EDA", "skipped")
     
     # Display overall status
     display_agent_status(ctx)
