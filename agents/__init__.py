@@ -5,11 +5,13 @@ from agents.data_quality_audit import run_data_quality_audit
 from agents.data_cleaning import run_data_cleaning
 from agents.eda import run_eda
 from agents.feature_engineering import run_feature_engineering
+from agents.modeling import run_modeling
 
 __all__ = [
     'run_data_ingestion',
     'run_data_quality_audit',
     'run_data_cleaning',
     'run_eda',
-    'run_feature_engineering'
+    'run_feature_engineering',
+    'run_modeling'
 ]

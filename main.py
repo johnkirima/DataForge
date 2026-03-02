@@ -24,7 +24,7 @@ from dotenv import load_dotenv
 load_dotenv()
 
 from pipeline_context import PipelineContext
-from agents import run_data_ingestion, run_data_quality_audit, run_data_cleaning, run_eda, run_feature_engineering
+from agents import run_data_ingestion, run_data_quality_audit, run_data_cleaning, run_eda, run_feature_engineering, run_modeling
 
 # ASCII Banner
 BANNER = r"""
@@ -405,6 +405,79 @@ def display_feature_engineering_results(ctx: PipelineContext) -> None:
             print(f"\n📐 Updated DataFrame Shape: {ctx.clean_df.shape[0]} rows x {ctx.clean_df.shape[1]} columns")
 
 
+def display_modeling_results(ctx: PipelineContext) -> None:
+    """Display the results of modeling."""
+    print("\n" + "=" * 60)
+    print("🤖 AGENT 6: MODELING RESULTS")
+    print("=" * 60)
+    
+    status = ctx.agent_status.get("Modeling")
+    
+    if status == "skipped":
+        print(f"\n⏭️  Status: SKIPPED (No target variable or previous agents failed)")
+        return
+    
+    if status == "failed":
+        print(f"\n❌ Status: FAILED")
+        if ctx.errors:
+            print(f"\n⚠️  Errors:")
+            for error in ctx.errors:
+                if "modeling" in error.lower():
+                    print(f"   - {error}")
+        return
+    
+    if status == "done":
+        print(f"\n✅ Status: SUCCESS")
+        
+        results = ctx.model_results
+        
+        # Task Type and Data Split
+        print(f"\n📊 Model Summary:")
+        print(f"   - Task Type: {results.get('task_type', 'N/A')}")
+        print(f"   - Features after encoding: {results.get('feature_count', 0)}")
+        print(f"   - Train set size: {results.get('train_size', 0)}")
+        print(f"   - Test set size: {results.get('test_size', 0)}")
+        
+        # Hyperparameters
+        hyperparams = results.get('hyperparameters', {})
+        print(f"\n⚙️  Random Forest Hyperparameters:")
+        print(f"   - n_estimators: {hyperparams.get('n_estimators', 'N/A')}")
+        print(f"   - max_depth: {hyperparams.get('max_depth', 'N/A')}")
+        print(f"   - min_samples_leaf: {hyperparams.get('min_samples_leaf', 'N/A')}")
+        print(f"   - random_state: {hyperparams.get('random_state', 'N/A')}")
+        
+        # Metrics
+        metrics = results.get('metrics', {})
+        print(f"\n📈 Evaluation Metrics:")
+        
+        if results.get('task_type') == 'classification':
+            print(f"   - Train Accuracy: {metrics.get('train_accuracy', 'N/A')}")
+            print(f"   - Test Accuracy: {metrics.get('test_accuracy', 'N/A')}")
+            print(f"   - Precision: {metrics.get('precision', 'N/A')}")
+            print(f"   - Recall: {metrics.get('recall', 'N/A')}")
+            print(f"   - F1 Score: {metrics.get('f1_score', 'N/A')}")
+            
+            # Confusion Matrix
+            conf_matrix = results.get('confusion_matrix')
+            if conf_matrix:
+                print(f"\n   Confusion Matrix:")
+                for row in conf_matrix:
+                    print(f"   {row}")
+        else:
+            print(f"   - Train RMSE: {metrics.get('train_rmse', 'N/A')}")
+            print(f"   - Test RMSE: {metrics.get('test_rmse', 'N/A')}")
+            print(f"   - Test MAE: {metrics.get('test_mae', 'N/A')}")
+            print(f"   - Test R² Score: {metrics.get('test_r2', 'N/A')}")
+            if 'test_mape' in metrics:
+                print(f"   - Test MAPE: {metrics.get('test_mape')}%")
+        
+        # Feature Importance
+        importance = results.get('feature_importance', [])
+        print(f"\n🔝 Top 5 Feature Importances:")
+        for i, feat in enumerate(importance[:5]):
+            print(f"   {i+1}. {feat['feature']}: {feat['importance']:.4f}")
+
+
 def display_agent_status(ctx: PipelineContext) -> None:
     """Display overall agent status."""
     print("\n" + "=" * 60)
@@ -416,9 +489,9 @@ def display_agent_status(ctx: PipelineContext) -> None:
 
 
 def main():
-    """Main entry point - Agent 1 through Agent 5 Demo."""
+    """Main entry point - Agent 1 through Agent 6 Demo."""
     print(BANNER)
-    print("🚀 Phase 2 - Data Ingestion + Quality Audit + Data Cleaning + EDA + Feature Engineering Demo")
+    print("🚀 Phase 2 - Data Ingestion + Quality Audit + Data Cleaning + EDA + Feature Engineering + Modeling Demo")
     print("=" * 60)
     print("\nSupported formats: CSV, Excel (.xlsx, .xls), Parquet (.parquet, .pq), URL")
     print("Sample data available: uploads/sample_data.csv")
@@ -474,6 +547,18 @@ def main():
     else:
         print("\n⏭️  Skipping Agent 5: Previous agents failed")
         ctx.mark_agent("Feature Engineering", "skipped")
+    
+    # === Agent 6: Modeling ===
+    if ctx.agent_status.get("Feature Engineering") == "done" and ctx.has_target:
+        print("\n🔄 Running Agent 6: Modeling...")
+        ctx = run_modeling(ctx)
+        display_modeling_results(ctx)
+    else:
+        if not ctx.has_target:
+            print("\n⏭️  Skipping Agent 6: No target variable defined")
+        else:
+            print("\n⏭️  Skipping Agent 6: Previous agents failed")
+        ctx.mark_agent("Modeling", "skipped")
     
     # Display overall status
     display_agent_status(ctx)
