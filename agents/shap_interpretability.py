@@ -109,8 +109,8 @@ def run_shap_interpretability(ctx: PipelineContext) -> PipelineContext:
             
             # === Generate SHAP Plots ===
             plots_generated = []
-            reports_dir = "reports"
-            os.makedirs(reports_dir, exist_ok=True)
+            reports_dir = os.path.join(ctx.run_dir, "plots")
+            # Directory already created by PipelineContext.__post_init__
             
             # Summary Plot (Beeswarm)
             try:
@@ -208,8 +208,8 @@ def run_shap_interpretability(ctx: PipelineContext) -> PipelineContext:
             
             # Generate fallback bar plot
             try:
-                reports_dir = "reports"
-                os.makedirs(reports_dir, exist_ok=True)
+                reports_dir = os.path.join(ctx.run_dir, "plots")
+                # Directory already created by PipelineContext.__post_init__
                 
                 plt.figure(figsize=config.PLOT_FIGSIZE)
                 top_10 = sorted_features[:10]

@@ -520,8 +520,8 @@ def run_eda(ctx: PipelineContext) -> PipelineContext:
     
     # Setup
     df = ctx.clean_df
-    reports_dir = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'reports')
-    os.makedirs(reports_dir, exist_ok=True)
+    reports_dir = os.path.join(ctx.run_dir, "plots")
+    # Directory already created by PipelineContext.__post_init__
     timestamp = _get_timestamp_prefix()
     plot_paths = []
     

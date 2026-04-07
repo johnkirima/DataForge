@@ -3,14 +3,16 @@ import logging
 import os
 from logging.handlers import RotatingFileHandler
 
-from config import LOG_MAX_BYTES, LOG_BACKUP_COUNT
+from config import LOG_MAX_BYTES
+
+LOG_BACKUP_COUNT = 5  # override: spec requires 5 (config.py keeps 3 for CLI)
 
 # Ensure logs directory exists
 LOG_DIR = os.path.join(os.path.dirname(__file__), "logs")
 os.makedirs(LOG_DIR, exist_ok=True)
 
 LOG_FILE = os.path.join(LOG_DIR, "pipeline.log")
-LOG_FORMAT = "[%(asctime)s] [%(levelname)s] [%(name)s] %(message)s"
+LOG_FORMAT = "%(asctime)s | %(levelname)s | %(name)s | %(message)s"
 
 # Configure root logger once
 _root_configured = False
@@ -47,14 +49,14 @@ def _setup_root_logger() -> None:
     _root_configured = True
 
 
-def get_logger(agent_name: str) -> logging.Logger:
-    """Get a logger instance for an agent.
-    
+def get_logger(name: str = "dataforge") -> logging.Logger:
+    """Get a logger instance by name.
+
     Args:
-        agent_name: Name of the agent requesting the logger
-        
+        name: Logger name (defaults to 'dataforge')
+
     Returns:
         Configured logger instance
     """
     _setup_root_logger()
-    return logging.getLogger(agent_name)
+    return logging.getLogger(name)

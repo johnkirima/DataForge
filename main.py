@@ -1,6 +1,7 @@
 """DataForge - Personal Data Science Automation Tool"""
 import sys
 import os
+import json
 
 # Virtual environment check (must be first)
 if sys.prefix == sys.base_prefix:
@@ -26,8 +27,10 @@ load_dotenv()
 from pipeline_context import PipelineContext
 from agents import (
     run_data_ingestion, run_data_quality_audit, run_data_cleaning, 
-    run_eda, run_feature_engineering, run_modeling, run_shap_interpretability
+    run_eda, run_feature_engineering, run_modeling, run_shap_interpretability,
+    run_statistical_testing, run_recommendations
 )
+from logger import get_logger
 
 # ASCII Banner
 BANNER = r"""
@@ -541,20 +544,282 @@ def display_shap_results(ctx: PipelineContext) -> None:
                 print(f"   - {filename}")
 
 
+def display_statistical_testing_results(ctx: PipelineContext) -> None:
+    """Display the results of statistical testing."""
+    print("\n" + "=" * 60)
+    print("📊 AGENT 8: STATISTICAL TESTING RESULTS")
+    print("=" * 60)
+    
+    status = ctx.agent_status.get("Statistical Testing")
+    
+    if status == "skipped":
+        reason = ctx.statistical_results.get("skipped_reason", "Previous agents failed or regression task")
+        print(f"\n⏭️  Status: SKIPPED ({reason})")
+        return
+    
+    if status == "failed":
+        print(f"\n❌ Status: FAILED")
+        if ctx.errors:
+            print(f"\n⚠️  Errors:")
+            for error in ctx.errors:
+                if "statistical" in error.lower():
+                    print(f"   - {error}")
+        return
+    
+    if status == "done":
+        print(f"\n✅ Status: SUCCESS")
+        
+        stat_results = ctx.statistical_results
+        
+        # Tests performed
+        tests_performed = stat_results.get("tests_performed", [])
+        print(f"\n🔬 Tests Performed:")
+        for test in tests_performed:
+            print(f"   - {test['type']}: {test['count']} tests")
+        
+        print(f"\n📈 Summary:")
+        print(f"   - Total tests: {stat_results.get('total_tests', 0)}")
+        print(f"   - Significant features (p<0.05): {stat_results.get('significant_count', 0)}")
+        
+        # Significant features
+        significant = stat_results.get("significant_features", [])
+        if significant:
+            print(f"\n✨ Significant Features:")
+            for i, feat in enumerate(significant[:10]):
+                print(f"   {i+1}. {feat}")
+            if len(significant) > 10:
+                print(f"   ... and {len(significant) - 10} more")
+        
+        # Test details (show top 5 from each test type)
+        test_details = stat_results.get("test_details", {})
+        
+        ttest = test_details.get("ttest", [])
+        if ttest:
+            print(f"\n📋 T-Test Results (top 5):")
+            for r in sorted(ttest, key=lambda x: x.get('p_value', 1))[:5]:
+                sig = "✓" if r.get('significant') else ""
+                print(f"   - {r['feature']}: t={r['statistic']}, p={r['p_value']:.6f} {sig}")
+        
+        anova = test_details.get("anova", [])
+        if anova:
+            print(f"\n📋 ANOVA Results (top 5):")
+            for r in sorted(anova, key=lambda x: x.get('p_value', 1))[:5]:
+                sig = "✓" if r.get('significant') else ""
+                print(f"   - {r['feature']}: F={r['statistic']}, p={r['p_value']:.6f} {sig}")
+        
+        chi_square = test_details.get("chi_square", [])
+        if chi_square:
+            print(f"\n📋 Chi-Square Results (top 5):")
+            for r in sorted(chi_square, key=lambda x: x.get('p_value', 1))[:5]:
+                sig = "✓" if r.get('significant') else ""
+                print(f"   - {r['feature']}: χ²={r['statistic']}, p={r['p_value']:.6f} {sig}")
+        
+        # DeepSeek Narrative
+        narrative = ctx.llm_narratives.get("statistical_testing", "")
+        print(f"\n🤖 AI Statistical Analysis (DeepSeek):")
+        print("-" * 60)
+        if narrative:
+            display_text = narrative[:700] + "..." if len(narrative) > 700 else narrative
+            print(display_text)
+        else:
+            print("No narrative generated.")
+        print("-" * 60)
+
+
+def display_recommendations_results(ctx: PipelineContext) -> None:
+    """Display the final recommendations."""
+    print("\n" + "=" * 60)
+    print("🎯 AGENT 9: RECOMMENDATIONS")
+    print("=" * 60)
+    
+    status = ctx.agent_status.get("Recommendations")
+    
+    if status == "skipped":
+        print(f"\n⏭️  Status: SKIPPED (No data available)")
+        return
+    
+    if status == "failed":
+        print(f"\n❌ Status: FAILED")
+        if ctx.errors:
+            print(f"\n⚠️  Errors:")
+            for error in ctx.errors:
+                if "recommendations" in error.lower():
+                    print(f"   - {error}")
+        return
+    
+    if status == "done":
+        print(f"\n✅ Status: SUCCESS")
+        
+        recs = ctx.recommendations
+        
+        # Overall Assessment
+        assessment = recs.get("overall_assessment", "")
+        print(f"\n📋 Overall Assessment:")
+        print("-" * 60)
+        print(assessment if assessment else "Not available")
+        print("-" * 60)
+        
+        # Strengths
+        strengths = recs.get("strengths", [])
+        if strengths:
+            print(f"\n💪 Key Strengths:")
+            for i, s in enumerate(strengths):
+                print(f"   {i+1}. {s}")
+        
+        # Areas for Improvement
+        improvements = recs.get("improvements", [])
+        if improvements:
+            print(f"\n🔧 Areas for Improvement:")
+            for i, imp in enumerate(improvements):
+                print(f"   {i+1}. {imp}")
+        
+        # Next Steps
+        next_steps = recs.get("next_steps", [])
+        if next_steps:
+            print(f"\n📌 Actionable Next Steps:")
+            for i, step in enumerate(next_steps):
+                print(f"   {i+1}. {step}")
+        
+        # Deployment Readiness
+        deployment_ready = recs.get("deployment_ready", False)
+        deployment_icon = "✅" if deployment_ready else "⚠️"
+        deployment_text = "YES" if deployment_ready else "NO"
+        print(f"\n🚀 Deployment Readiness: {deployment_icon} {deployment_text}")
+        reasoning = recs.get("deployment_reasoning", "")
+        if reasoning:
+            print(f"   {reasoning[:300]}")
+        
+        # Full Claude Narrative
+        narrative = ctx.llm_narratives.get("recommendations", "")
+        print(f"\n🤖 Full AI Recommendations (Claude Sonnet 4.6):")
+        print("-" * 60)
+        if narrative:
+            display_text = narrative[:1000] + "..." if len(narrative) > 1000 else narrative
+            print(display_text)
+        else:
+            print("No narrative generated.")
+        print("-" * 60)
+
+
 def display_agent_status(ctx: PipelineContext) -> None:
     """Display overall agent status."""
     print("\n" + "=" * 60)
-    print("📊 AGENT STATUS SUMMARY")
+    print("📊 AGENT STATUS SUMMARY (All 9 Agents)")
     print("=" * 60)
-    for agent, status in ctx.agent_status.items():
+    
+    # Define agent order for display
+    agent_order = [
+        "Data Ingestion",
+        "Data Quality Audit", 
+        "Data Cleaning",
+        "EDA",
+        "Feature Engineering",
+        "Modeling",
+        "SHAP Interpretability",
+        "Statistical Testing",
+        "Recommendations"
+    ]
+    
+    for agent in agent_order:
+        status = ctx.agent_status.get(agent, "not run")
         icon = "✅" if status == "done" else "❌" if status == "failed" else "⏭️" if status == "skipped" else "🔄"
         print(f"   {icon} {agent}: {status}")
 
 
+def safe_run(agent_fn, ctx: PipelineContext, display_name: str) -> PipelineContext:
+    """Safely run an agent, buffering START/DONE/ERROR into ctx.agent_logs."""
+    ctx.append_log(f"START: {display_name}")
+    try:
+        result = agent_fn(ctx)
+        ctx.append_log(f"DONE: {display_name}")
+        return result
+    except Exception as e:
+        short_msg = str(e)[:200]
+        get_logger().exception(f"ERROR: {display_name}: {short_msg}")
+        ctx.append_log(f"ERROR: {display_name}: {short_msg}")
+        ctx.errors.append(f"{display_name} Error: {str(e)}")
+        ctx.mark_agent(display_name, "failed")
+        return ctx
+
+
+def run_dataforge_pipeline(dataset_path: str, target_col: str = None, drop_columns: list = None) -> PipelineContext:
+    """Programmatic entry point for DataForge pipeline."""
+    ctx = PipelineContext(dataset_path=dataset_path)
+    
+    # === Agent 1: Data Ingestion ===
+    ctx = safe_run(run_data_ingestion, ctx, "Data Ingestion")
+    if ctx.agent_status.get("Data Ingestion") != "done" or ctx.raw_df is None:
+        pass # allow writing summary even if failed
+    else:
+        # === Handle Columns to Drop ===
+        if drop_columns:
+            cols_to_drop = [c for c in drop_columns if c in ctx.raw_df.columns]
+            if cols_to_drop:
+                ctx.raw_df.drop(columns=cols_to_drop, inplace=True)
+
+        # === Target Variable Configuration ===
+        if target_col and target_col in ctx.raw_df.columns:
+            ctx.target_column = target_col
+            ctx.has_target = True
+        else:
+            ctx.has_target = False
+
+        # === Execute Remaining Pipeline ===
+        ctx = safe_run(run_data_quality_audit, ctx, "Data Quality Audit")
+        ctx = safe_run(run_data_cleaning, ctx, "Data Cleaning")
+        ctx = safe_run(run_eda, ctx, "EDA")
+        ctx = safe_run(run_feature_engineering, ctx, "Feature Engineering")
+        
+        if ctx.has_target:
+            ctx = safe_run(run_modeling, ctx, "Modeling")
+            ctx = safe_run(run_shap_interpretability, ctx, "SHAP Interpretability")
+            ctx = safe_run(run_statistical_testing, ctx, "Statistical Testing")
+        else:
+            ctx.mark_agent("Modeling", "skipped")
+            ctx.mark_agent("SHAP Interpretability", "skipped")
+            ctx.mark_agent("Statistical Testing", "skipped")
+            
+        ctx = safe_run(run_recommendations, ctx, "Recommendations")
+
+    # ── Write per-run summary.json ─────────────────────────────────────────
+    _NON_SERIAL = ("model", "X_test", "X_train", "y_test", "y_train")
+    try:
+        _safe_model = {
+            k: v for k, v in ctx.model_results.items()
+            if k not in _NON_SERIAL
+        } if ctx.model_results else {}
+        summary_data = {
+            "run_id": ctx.run_id,
+            "agent_status": ctx.agent_status,
+            "model_results": _safe_model,
+            "errors": ctx.errors,
+        }
+        with open(os.path.join(ctx.run_dir, "summary.json"), "w", encoding="utf-8") as f:
+            json.dump(summary_data, f, indent=4, default=str)
+    except Exception as exc:
+        ctx.errors.append(f"summary.json write failed: {exc}")
+
+    # ── Write per-run metadata.json ────────────────────────────────────────
+    try:
+        metadata = {
+            "run_id": ctx.run_id,
+            "dataset_path": ctx.dataset_path,
+            "target_column": ctx.target_column,
+        }
+        with open(os.path.join(ctx.run_dir, "metadata.json"), "w", encoding="utf-8") as f:
+            json.dump(metadata, f, indent=4)
+    except Exception as exc:
+        ctx.errors.append(f"metadata.json write failed: {exc}")
+
+    ctx.close()  # flush and release the per-run pipeline.log FileHandler
+    return ctx
+
+
+
 def main():
-    """Main entry point - Agent 1 through Agent 7 Demo."""
+    """Main entry point - Complete 9-Agent Pipeline."""
     print(BANNER)
-    print("🚀 Phase 2 - Full Pipeline: Ingestion → Quality Audit → Cleaning → EDA → Feature Engineering → Modeling → SHAP")
+    print("🚀 Phase 2 - Full Pipeline: Ingestion → Quality → Cleaning → EDA → Features → Model → SHAP → Stats → Recommendations")
     print("=" * 60)
     print("\nSupported formats: CSV, Excel (.xlsx, .xls), Parquet (.parquet, .pq), URL")
     print("Sample data available: uploads/sample_data.csv")
@@ -659,11 +924,33 @@ def main():
         print("\n⏭️  Skipping Agent 7: Modeling not completed")
         ctx.mark_agent("SHAP Interpretability", "skipped")
     
+    # === Agent 8: Statistical Testing ===
+    if ctx.agent_status.get("Modeling") == "done" and ctx.has_target:
+        print("\n🔄 Running Agent 8: Statistical Testing...")
+        ctx = run_statistical_testing(ctx)
+        display_statistical_testing_results(ctx)
+    else:
+        if not ctx.has_target:
+            print("\n⏭️  Skipping Agent 8: No target variable defined")
+        else:
+            print("\n⏭️  Skipping Agent 8: Modeling not completed")
+        ctx.mark_agent("Statistical Testing", "skipped")
+    
+    # === Agent 9: Recommendations ===
+    # Agent 9 can run with partial results, but needs some data
+    if ctx.clean_df is not None or ctx.raw_df is not None:
+        print("\n🔄 Running Agent 9: Recommendations...")
+        ctx = run_recommendations(ctx)
+        display_recommendations_results(ctx)
+    else:
+        print("\n⏭️  Skipping Agent 9: No data available")
+        ctx.mark_agent("Recommendations", "skipped")
+    
     # Display overall status
     display_agent_status(ctx)
     
     print("\n" + "=" * 60)
-    print("Pipeline complete. All 7 agents executed.")
+    print("🎉 Pipeline complete. All 9 agents executed.")
     print("=" * 60)
 
 

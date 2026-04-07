@@ -13,6 +13,7 @@ from openai import OpenAI
 from pipeline_context import PipelineContext
 from config import DEEPSEEK_API_KEY
 from logger import get_logger
+from agents.leakage_detector import detect_potential_leakage
 
 logger = get_logger("DataQualityAudit")
 
@@ -360,7 +361,18 @@ def run_data_quality_audit(ctx: PipelineContext) -> PipelineContext:
         
         # Store in context
         ctx.eda_summary["quality_audit"] = quality_report
-        
+
+        # ── Leakage detection (advisory only — no columns are dropped) ──────
+        if ctx.target_column:
+            leaky_cols = detect_potential_leakage(df, ctx.target_column)
+            ctx.warnings["potential_leakage"] = leaky_cols
+            if leaky_cols:
+                ctx.append_log(
+                    f"ADVICE: Found potential data leakage in columns: {leaky_cols}"
+                )
+            else:
+                ctx.append_log("ADVICE: No potential data leakage detected.")
+
         logger.info(f"Quality checks completed:")
         logger.info(f"  - Missing values in {missing_values['columns_with_missing']} columns")
         logger.info(f"  - {duplicates['count']} duplicate rows ({duplicates['percentage']}%)")

@@ -47,18 +47,19 @@ def encode_categoricals(df: pd.DataFrame, target_column: str) -> tuple:
     # Identify categorical columns
     cat_cols = X.select_dtypes(include=['object', 'category']).columns.tolist()
     
-    # Drop high-cardinality categoricals
+    # Drop high-cardinality categoricals (these have too many unique values for one-hot encoding)
     high_card_cols = [col for col in cat_cols if X[col].nunique() > config.MAX_CATS_UNIQUE]
     if high_card_cols:
-        logger.warning(f"Dropping high-cardinality columns (>{config.MAX_CATS_UNIQUE} unique): {high_card_cols}")
+        logger.info(f"Dropping high-cardinality columns (>{config.MAX_CATS_UNIQUE} unique values, not suitable for one-hot encoding): {high_card_cols}")
         X = X.drop(columns=high_card_cols)
         cat_cols = [col for col in cat_cols if col not in high_card_cols]
     
-    # One-hot encode remaining categoricals (keep ALL encoded columns)
+    # One-hot encode remaining categoricals (keep ALL encoded columns, no drop_first)
     if cat_cols:
         logger.info(f"One-hot encoding categorical columns: {cat_cols}")
-        # FIX: Remove drop_first=True to keep all encoded columns
+        # Keep all encoded columns (drop_first=False ensures no reference category is dropped)
         X = pd.get_dummies(X, columns=cat_cols, drop_first=False)
+        logger.info(f"One-hot encoding complete. New column count: {X.shape[1]}")
     
     return X, y
 

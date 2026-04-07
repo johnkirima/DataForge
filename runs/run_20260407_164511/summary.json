@@ -1,0 +1,10 @@
+{
+    "run_id": "run_20260407_164511",
+    "agent_status": {
+        "Data Ingestion": "failed"
+    },
+    "model_results": {},
+    "errors": [
+        "File not found: uploads/sample_for_tests.csv"
+    ]
+}
