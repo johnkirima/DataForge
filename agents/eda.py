@@ -527,6 +527,13 @@ def run_eda(ctx: PipelineContext) -> PipelineContext:
     
     logger.info(f"DataFrame shape: {df.shape[0]} rows x {df.shape[1]} columns")
     
+    # Missing Value Check
+    missing_ratio = df.isnull().mean().mean()
+    if missing_ratio > 0.3:
+        ctx.warnings.append(
+            "⚠️ High Missing Values: More than 30% of data is missing."
+        )
+    
     try:
         # === 1. Descriptive Statistics ===
         logger.info("Step 1: Computing descriptive statistics...")

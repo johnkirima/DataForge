@@ -1,0 +1,11 @@
+age,income,education,experience,department,performance_score
+25,45000,Bachelor,2,Sales,Good
+32,62000,Master,8,Engineering,Excellent
+28,51000,Bachelor,4,Marketing,Good
+45,85000,PhD,20,Engineering,Excellent
+35,58000,Master,10,Sales,Average
+29,48000,Bachelor,5,Marketing,Good
+41,78000,Master,15,Engineering,Excellent
+33,55000,Bachelor,7,Sales,Average
+27,46000,Bachelor,3,Marketing,Good
+38,72000,Master,12,Engineering,Good

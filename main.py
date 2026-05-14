@@ -742,9 +742,13 @@ def safe_run(agent_fn, ctx: PipelineContext, display_name: str) -> PipelineConte
         return ctx
 
 
-def run_dataforge_pipeline(dataset_path: str, target_col: str = None, drop_columns: list = None) -> PipelineContext:
+def run_dataforge_pipeline(dataset_path: str, target_col: str = None, drop_columns: list = None, run_id: str = None) -> PipelineContext:
     """Programmatic entry point for DataForge pipeline."""
-    ctx = PipelineContext(dataset_path=dataset_path)
+    from datetime import datetime, timezone
+    start_time_dt = datetime.now(timezone.utc)
+    start_time = start_time_dt.isoformat()
+    
+    ctx = PipelineContext(dataset_path=dataset_path, run_id=run_id if run_id else "")
     
     # === Agent 1: Data Ingestion ===
     ctx = safe_run(run_data_ingestion, ctx, "Data Ingestion")
@@ -788,12 +792,40 @@ def run_dataforge_pipeline(dataset_path: str, target_col: str = None, drop_colum
             k: v for k, v in ctx.model_results.items()
             if k not in _NON_SERIAL
         } if ctx.model_results else {}
+        
+        end_time_dt = datetime.now(timezone.utc)
+        end_time = end_time_dt.isoformat()
+        duration_seconds = round((end_time_dt - start_time_dt).total_seconds(), 2)
+        
         summary_data = {
             "run_id": ctx.run_id,
             "agent_status": ctx.agent_status,
             "model_results": _safe_model,
             "errors": ctx.errors,
+            "warnings": ctx.warnings,
+            "start_time": start_time,
+            "end_time": end_time,
+            "duration_seconds": duration_seconds
         }
+        
+        from agents.explainer import ExplanationEngine
+        engine = ExplanationEngine(ctx)
+        explanations = engine.generate_all()
+        summary_data['explanations'] = explanations
+        
+        explanations_path = os.path.join(ctx.run_dir, 'explanations.json')
+        with open(explanations_path, 'w', encoding='utf-8') as fh:
+            json.dump(explanations, fh, indent=2)
+
+        from agents.mentor import MentorEngine
+        mentor = MentorEngine(ctx)
+        guidance = mentor.generate_all()
+        summary_data['guidance'] = guidance
+        
+        guidance_path = os.path.join(ctx.run_dir, 'guidance.json')
+        with open(guidance_path, 'w', encoding='utf-8') as fh:
+            json.dump(guidance, fh, indent=2)
+
         with open(os.path.join(ctx.run_dir, "summary.json"), "w", encoding="utf-8") as f:
             json.dump(summary_data, f, indent=4, default=str)
     except Exception as exc:
@@ -810,6 +842,40 @@ def run_dataforge_pipeline(dataset_path: str, target_col: str = None, drop_colum
             json.dump(metadata, f, indent=4)
     except Exception as exc:
         ctx.errors.append(f"metadata.json write failed: {exc}")
+
+    # ── Write Cleaned Dataset ────────────────────────────────────────────────
+    run_id = ctx.run_id
+    run_dir = ctx.run_dir
+    if getattr(ctx, "clean_df", None) is not None and not ctx.clean_df.empty:
+        from tempfile import NamedTemporaryFile
+        tmp_path = None
+        try:
+            with NamedTemporaryFile(mode="w", delete=False, dir=run_dir, suffix=".csv") as tf:
+                tmp_path = tf.name
+                ctx.clean_df.to_csv(tmp_path, index=False, encoding="utf-8")
+            final_path = os.path.join(run_dir, "dataset_clean.csv")
+            os.replace(tmp_path, final_path)
+            # update summary.json
+            summary_path = os.path.join(run_dir, "summary.json")
+            try:
+                summary = {}
+                if os.path.exists(summary_path):
+                    with open(summary_path, "r", encoding="utf-8") as fh:
+                        summary = json.load(fh)
+                summary.setdefault("artifacts", []).append("dataset_clean.csv")
+                with open(summary_path, "w", encoding="utf-8") as fh:
+                    json.dump(summary, fh, indent=4)
+            except Exception:
+                pass
+            ctx.append_log(f"Artifact Saved: dataset_clean.csv")
+        finally:
+            if tmp_path and os.path.exists(tmp_path):
+                try:
+                    os.remove(tmp_path)
+                except Exception:
+                    pass
+    else:
+        ctx.append_log(f"WARNING: No cleaned dataframe available to save for run_id={run_id}")
 
     ctx.close()  # flush and release the per-run pipeline.log FileHandler
     return ctx

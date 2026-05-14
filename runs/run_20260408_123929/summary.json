@@ -1,0 +1,19 @@
+{
+    "run_id": "run_20260408_123929",
+    "agent_status": {
+        "Data Ingestion": "done",
+        "Data Quality Audit": "done",
+        "Data Cleaning": "done",
+        "EDA": "done",
+        "Feature Engineering": "done",
+        "Modeling": "failed",
+        "SHAP Interpretability": "skipped",
+        "Statistical Testing": "skipped",
+        "Recommendations": "done"
+    },
+    "model_results": {},
+    "errors": [
+        "Modeling: could not convert string to float: 'Battery Electric Vehicle (BEV)'",
+        "SHAP Interpretability: No trained model available"
+    ]
+}

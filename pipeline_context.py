@@ -44,7 +44,7 @@ class PipelineContext:
     recommendations: Dict = field(default_factory=dict)  # Agent 9: Final recommendations
 
     # Advisory warnings (leakage flags, schema issues, etc.) — never blocks pipeline
-    warnings: Dict = field(default_factory=dict)
+    warnings: List[str] = field(default_factory=list)
 
     # Tracking
     errors: List[str] = field(default_factory=list)

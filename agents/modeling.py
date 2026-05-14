@@ -114,6 +114,30 @@ def run_modeling(ctx: PipelineContext) -> PipelineContext:
         logger.info("Preparing data: encoding categoricals...")
         X, y = encode_categoricals(df, ctx.target_column)
         
+        # === Categorical Target Safeguard ===
+        if y.dtype == object or y.dtype.name == 'category' or y.dtype == str:
+            logger.info("Categorical string target detected. Applying LabelEncoder safeguard...")
+            from sklearn.preprocessing import LabelEncoder
+            import json
+            import os
+            le = LabelEncoder()
+            y_enc = le.fit_transform(y)
+            y = pd.Series(y_enc, index=y.index)
+            
+            # Save mapping to run_dir
+            mapping = {str(k): int(v) for k, v in zip(le.classes_, range(len(le.classes_)))}
+            try:
+                enc_path = os.path.join(ctx.run_dir, "label_encoder.json")
+                with open(enc_path, "w", encoding="utf-8") as f:
+                    json.dump(mapping, f, indent=4)
+                logger.info(f"Target mapped: {mapping}. Saved label_encoder.json")
+            except Exception as e:
+                logger.warning(f"Failed to save label_encoder.json: {e}")
+                
+            # Force task_type to classification
+            ctx.task_type = "classification"
+            logger.info("Forced task_type to 'classification' due to categorical target encoding.")
+        
         # Handle any remaining missing values (drop rows with NaN)
         initial_rows = len(X)
         mask = ~(X.isna().any(axis=1) | y.isna())
@@ -287,6 +311,33 @@ def run_modeling(ctx: PipelineContext) -> PipelineContext:
             logger.info(f"Test R² Score: {test_r2:.4f}")
             logger.info(f"Test MAE: {test_mae:.4f}")
         
+        # === Red Flag Checks ===
+        accuracy = metrics.get("test_accuracy", metrics.get("test_r2", 0))
+        if ctx.task_type == "classification":
+            train_score = metrics.get("train_accuracy", 0)
+            test_score = metrics.get("test_accuracy", 0)
+        else:
+            train_score = metrics.get("train_r2", r2_score(y_train, y_train_pred))
+            test_score = metrics.get("test_r2", 0)
+            
+        # Data Leakage Check
+        if accuracy >= 0.99:
+            ctx.warnings.append(
+                "⚠️ Possible Data Leakage: Model accuracy is extremely high (>= 0.99). Check if any feature directly encodes the target."
+            )
+        
+        # Overfitting Check
+        if train_score - test_score > 0.15:
+            ctx.warnings.append(
+                "⚠️ Overfitting Detected: Training performance is significantly higher than testing performance."
+            )
+        
+        # Small Dataset Check
+        if len(df) < 500:
+            ctx.warnings.append(
+                "⚠️ Small Dataset: Results may not generalize well."
+            )
+
         # === Feature Importance ===
         feature_importance = model.feature_importances_
         importance_df = pd.DataFrame({

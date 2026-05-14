@@ -1,0 +1,5 @@
+{
+    "run_id": "run_20260408_123929",
+    "dataset_path": "uploads\\Electric_Vehicle_Population_Data.csv",
+    "target_column": "Electric Vehicle Type"
+}
