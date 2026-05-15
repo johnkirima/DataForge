@@ -1,8 +1,0 @@
-2026-04-07 16:45:11,180 | INFO | dataforge | START: Data Ingestion
-2026-04-07 16:45:11,182 | INFO | DataIngestion | ==================================================
-2026-04-07 16:45:11,183 | INFO | DataIngestion | Starting Data Ingestion Agent
-2026-04-07 16:45:11,184 | INFO | DataIngestion | ==================================================
-2026-04-07 16:45:11,185 | INFO | DataIngestion | Dataset path: uploads/sample_for_tests.csv
-2026-04-07 16:45:11,187 | INFO | DataIngestion | Detected format: .csv
-2026-04-07 16:45:11,189 | ERROR | DataIngestion | File not found: uploads/sample_for_tests.csv
-2026-04-07 16:45:11,190 | INFO | dataforge | DONE: Data Ingestion
